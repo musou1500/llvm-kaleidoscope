@@ -4,6 +4,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <llvm/ADT/STLExtras.h>
 
 enum Token {
   tok_eof = -1,
@@ -62,40 +63,40 @@ static int gettok() {
   return ThisChar;
 }
 
-class ExprAst {
+class ExprAST {
 public:
-  virtual ~ExprAst() {}
+  virtual ~ExprAST() {}
 };
 
-class NumberExprAst : public ExprAst {
+class NumberExprAST : public ExprAST {
   double Val;
 public:
-  NumberExprAst(double Val): Val(Val) {}
+  NumberExprAST(double Val): Val(Val) {}
 };
 
-class VariableExprAst : public ExprAst {
+class VariableExprAST : public ExprAST {
   std::string Name;
 public:
-  VariableExprAst(const std::string &Name) : Name(Name) {}
+  VariableExprAST(const std::string &Name) : Name(Name) {}
 };
 
-class BinaryExprAST : public ExprAst {
+class BinaryExprAST : public ExprAST {
   char Op;
-  std::unique_ptr<ExprAst> LHS, RHS;
+  std::unique_ptr<ExprAST> LHS, RHS;
 public:
-  BinaryExprAST(char op, std::unique_ptr<ExprAst> LHS, std::unique_ptr<ExprAst> RHS)
+  BinaryExprAST(char op, std::unique_ptr<ExprAST> LHS, std::unique_ptr<ExprAST> RHS)
     : Op(op), LHS(std::move(LHS)), RHS(std::move(RHS)) {}
 };
 
-class CallExprAST {
+class CallExprAST : public ExprAST {
   std::string Callee;
-  std::vector<std::unique_ptr<ExprAst>> Args;
+  std::vector<std::unique_ptr<ExprAST>> Args;
 public:
-  CallExprAST(const std::string &Callee, std::vector<std::unique_ptr<ExprAst>> Args)
+  CallExprAST(const std::string &Callee, std::vector<std::unique_ptr<ExprAST>> Args)
     : Callee(Callee), Args(std::move(Args)) {}
 };
 
-class PrototypeAST {
+class PrototypeAST : public ExprAST {
   std::string Name;
   std::vector<std::string> Args;
 public:
@@ -105,16 +106,95 @@ public:
   const std::string &getName() const { return Name; }
 };
 
-class FunctionAST {
+class FunctionAST : public ExprAST {
   std::unique_ptr<PrototypeAST> Proto;
-  std::unique_ptr<ExprAst> Body;
+  std::unique_ptr<ExprAST> Body;
 public:
-  FunctionAST(std::unique_ptr<PrototypeAST> Proto, std::unique_ptr<ExprAst> Body)
+  FunctionAST(std::unique_ptr<PrototypeAST> Proto, std::unique_ptr<ExprAST> Body)
     : Proto(std::move(Proto)), Body(std::move(Body)) {}
 };
 
+static int CurTok;
+
+static int getNextToken() {
+  return CurTok = gettok();
+}
+
+std::unique_ptr<ExprAST> LogError(const char* str) {
+  fprintf(stderr, "LogError: %s\n", str);
+  return nullptr;
+}
+
+std::unique_ptr<PrototypeAST> LogerrorP(const char *Str) {
+  LogError(Str);
+  return nullptr;
+}
+
+/// numberexpr ::= number
+static std::unique_ptr<ExprAST> ParseNumberExpr() {
+  auto Result = llvm::make_unique<NumberExprAST>(NumVal);
+  getNextToken();
+  return std::move(Result);
+}
+
+/// parenexpr ::= '(' expression ')'
+static std::unique_ptr<ExprAST> ParseParenExpr() {
+  getNextToken(); // eat (.
+  auto V = ParseExpression();
+  if (!V)
+    return nullptr;
+
+  if (CurTok != ')')
+    return LogError("expected ')'");
+  getNextToken(); // eat ).
+  return V;
+}
+
+static std::unique_ptr<ExprAST> ParseIdentifierExpr() {
+  std::string IdName = IdentifierStr;
+
+  getNextToken();
+
+  if (CurTok != '(')
+    return llvm::make_unique<VariableExprAST>(IdName);
+
+  getNextToken();
+  std::vector<std::unique_ptr<ExprAST>> Args;
+  if (CurTok == '(') {
+    while(1) {
+      if (auto Arg = ParseExpression())
+        Args.push_back(std::move(Arg));
+      else
+        return nullptr;
+
+      if (CurTok == ')')
+        break;
+
+      if (CurTok != ',')
+        return LogError("Expected ')' or ',' in argument list");
+      getNextToken();
+    }
+  }
+
+  getNextToken();
+
+  return llvm::make_unique<CallExprAST>(IdName, std::move(Args));
+}
+
+static std::unique_ptr<ExprAST> ParsePrimary() {
+  switch(CurTok) {
+  default:
+    return LogError("unknown token when expecting an expression");
+  case tok_identifier:
+    return ParseIdentifierExpr();
+  case tok_number:
+    return ParseNumberExpr();
+  case '(':
+    return ParseParenExpr();
+  }
+}
+
 int main(int argc, char const* argv[])
 {
-
   return 0;
 }
