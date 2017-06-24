@@ -243,6 +243,58 @@ static std::unique_ptr<ExprAST> ParseExpression() {
   return ParseBinOpRHS(0, std::move(LHS));
 }
 
+static std::unique_ptr<PrototypeAST> ParsePrototype() {
+  if (CurTok != tok_identifier) {
+    return LogerrorP("Expected function name in prototype");
+  }
+
+  std::string FnName = IdentifierStr;
+  getNextToken();
+
+  if (CurTok != '(') {
+    return LogerrorP("Expected '(' in prototype");
+  }
+
+  std::vector<std::string> ArgNames;
+  while (getNextToken() == tok_identifier) {
+    ArgNames.push_back(IdentifierStr);
+  }
+
+  if (CurTok != ')') {
+    return LogerrorP("Expected ')' in prototype");
+  }
+
+  getNextToken();
+  return llvm::make_unique<PrototypeAST>(FnName, std::move(ArgNames));
+}
+
+static std::unique_ptr<FunctionAST> ParseDefinition() {
+  getNextToken();
+  auto Proto = ParsePrototype();
+  if (!Proto) {
+    return nullptr;
+  }
+
+  if (auto E = ParseExpression()) {
+    return llvm::make_unique<FunctionAST>(std::move(Proto), std::move(E));
+  }
+  return nullptr;
+}
+
+static std::unique_ptr<PrototypeAST> ParseExtern() {
+  getNextToken();
+  return ParsePrototype();
+}
+
+static std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
+  if (auto E = ParseExpression()) {
+    auto Proto = llvm::make_unique<PrototypeAST>("", std::vector<std::string>());
+    return llvm::make_unique<FunctionAST>(std::move(Proto), std::move(E));
+  }
+
+  return nullptr;
+}
+
 int main(int argc, char const* argv[])
 {
   BinopPrecedence['<'] = 10;

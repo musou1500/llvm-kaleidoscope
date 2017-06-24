@@ -1,1 +1,1 @@
-flags = -I/usr/include/llvm-4.0/
+compilation_database = "./build"
