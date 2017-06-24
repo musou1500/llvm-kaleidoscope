@@ -6,7 +6,8 @@ add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
 
-add_executable(llvm-kaleidoscope main.cpp)
+include_directories(./src)
+add_executable(llvm-kaleidoscope ./src/main.cpp)
 
 # Use C++11 to compile our pass (i.e., supply -std=c++11).
 target_compile_features(llvm-kaleidoscope PRIVATE cxx_range_for cxx_auto_type)
