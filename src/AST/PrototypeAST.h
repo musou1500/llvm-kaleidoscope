@@ -3,6 +3,7 @@
 #include <vector>
 #include <utility>
 #include "ExprAST.h"
+#include "llvm/IR/IRBuilder.h"
 
 class PrototypeAST : public ExprAST {
   std::string Name;
@@ -12,4 +13,5 @@ public:
     : Name(name), Args(std::move(Args)) {}
 
   const std::string &getName() const { return Name; }
+  virtual llvm::Function *codegen() override;
 };

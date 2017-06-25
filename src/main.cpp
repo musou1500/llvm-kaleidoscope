@@ -4,7 +4,17 @@
 #include <memory>
 #include <utility>
 #include <vector>
-#include <llvm/ADT/STLExtras.h>
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+#include "llvm/IR/Verifier.h"
 #include <map>
 #include "AST/ExprAST.h"
 #include "AST/CallExprAST.h"
@@ -14,6 +24,11 @@
 #include "AST/PrototypeAST.h"
 #include "AST/VariableExprAST.h"
 #include "Logger.h"
+
+llvm::LLVMContext TheContext;
+llvm::IRBuilder<> Builder(TheContext);
+std::unique_ptr<llvm::Module> TheModule;
+std::map<std::string, llvm::Value *> NamedValues;
 
 static std::map<char, int> BinopPrecedence;
 

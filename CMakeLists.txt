@@ -7,10 +7,20 @@ include_directories(${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
 
 include_directories(./src)
-add_executable(llvm-kaleidoscope ./src/main.cpp)
+add_executable(llvm-kaleidoscope
+  ./src/main.cpp
+  ./src/AST/BinaryExprAST.cpp
+  ./src/AST/CallExprAST.cpp
+  ./src/AST/NumberExprAST.cpp
+  ./src/AST/VariableExprAST.cpp
+  ./src/AST/FunctionAST.cpp
+  ./src/AST/PrototypeAST.cpp)
 
 # Use C++11 to compile our pass (i.e., supply -std=c++11).
 target_compile_features(llvm-kaleidoscope PRIVATE cxx_range_for cxx_auto_type)
+
+llvm_map_components_to_libnames(llvm_libs support core irreader)
+target_link_libraries(llvm-kaleidoscope ${llvm_libs})
 
 # LLVM is (typically) built with no C++ RTTI. We need to match that;
 # otherwise, we'll get linker errors about missing RTTI data.

@@ -5,4 +5,5 @@ class NumberExprAST : public ExprAST {
   double Val;
 public:
   NumberExprAST(double Val): Val(Val) {}
+  virtual llvm::Value *codegen() override;
 };
