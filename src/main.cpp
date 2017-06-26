@@ -1,21 +1,15 @@
-#include <string>
 #include <stdio.h>
 #include <stdlib.h>
-#include <memory>
+#include <string>
 #include <utility>
+#include <map>
+#include <memory>
 #include <vector>
-#include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/IR/BasicBlock.h"
-#include "llvm/IR/Constants.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Type.h"
-#include "llvm/IR/Verifier.h"
-#include <map>
+#include "llvm/IR/Value.h"
 #include "AST/ExprAST.h"
 #include "AST/CallExprAST.h"
 #include "AST/BinaryExprAST.h"
@@ -43,6 +37,10 @@ enum Token {
 static std::string IdentifierStr;
 static double NumVal;
 
+/**
+ * 標準入力からトークンを得て，IdentifierStrまたはNumValに代入する
+ * 得たトークンの種類(Token)を返す
+ */
 static int gettok() {
   static int LastChar = ' ';
 
@@ -149,14 +147,14 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr() {
 
 static std::unique_ptr<ExprAST> ParsePrimary() {
   switch(CurTok) {
-  default:
-    return LogError("unknown token when expecting an expression");
   case tok_identifier:
     return ParseIdentifierExpr();
   case tok_number:
     return ParseNumberExpr();
   case '(':
     return ParseParenExpr();
+  default:
+    return LogError("unknown token when expecting an expression");
   }
 }
 
