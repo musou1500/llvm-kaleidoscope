@@ -10,6 +10,7 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
+#include "llvm/Support/raw_ostream.h"
 #include "AST/ExprAST.h"
 #include "AST/CallExprAST.h"
 #include "AST/BinaryExprAST.h"
@@ -124,7 +125,7 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr() {
 
   getNextToken();
   std::vector<std::unique_ptr<ExprAST>> Args;
-  if (CurTok == '(') {
+  if (CurTok != ')') {
     while(1) {
       if (auto Arg = ParseExpression())
         Args.push_back(std::move(Arg));
@@ -141,7 +142,6 @@ static std::unique_ptr<ExprAST> ParseIdentifierExpr() {
   }
 
   getNextToken();
-
   return llvm::make_unique<CallExprAST>(IdName, std::move(Args));
 }
 
@@ -255,24 +255,36 @@ static std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
 }
 
 static void HandleDefinition() {
-  if (ParseDefinition()) {
-    fprintf(stderr, "Parsed a function definition.\n");
+  if (auto FnAST = ParseDefinition()) {
+    if(auto *FnIR =FnAST->codegen()) {
+      fprintf(stderr, "Read function definition:");
+      FnIR->print(llvm::errs());
+      fprintf(stderr, "\n");
+    }
   } else {
     getNextToken();
   }
 }
 
 static void HandleExtern() {
-  if (ParseExtern()) {
-    fprintf(stderr, "Parsed an extern.\n");
+  if (auto ProtoAST = ParseExtern()) {
+    if (auto * FnIR = ProtoAST->codegen()) {
+      fprintf(stderr, "Read extern:");
+      FnIR->print(llvm::errs());
+      fprintf(stderr, "\n");
+    }
   } else {
     getNextToken();
   }
 }
 
 static void HandleTopLevelExpression() {
-  if (ParseTopLevelExpr()) {
-    fprintf(stderr, "Parsed a top-level expr.\n");
+  if (auto FnAST = ParseTopLevelExpr()) {
+    if (auto *FnIR = FnAST->codegen()) {
+      fprintf(stderr, "Read top-level expression:");
+      FnIR->print(llvm::errs());
+      fprintf(stderr, "\n");
+    }
   } else {
     getNextToken();
   }
@@ -309,6 +321,8 @@ int main(int argc, char const* argv[])
 
   fprintf(stderr, "ready> ");
   getNextToken();
+  TheModule = llvm::make_unique<llvm::Module>("my cool jit", TheContext);
   Mainloop();
+  TheModule->print(llvm::errs(), nullptr);
   return 0;
 }
