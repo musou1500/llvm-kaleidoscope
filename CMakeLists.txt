@@ -19,7 +19,7 @@ add_executable(llvm-kaleidoscope
 # Use C++11 to compile our pass (i.e., supply -std=c++11).
 target_compile_features(llvm-kaleidoscope PRIVATE cxx_range_for cxx_auto_type)
 
-llvm_map_components_to_libnames(llvm_libs support core irreader)
+llvm_map_components_to_libnames(llvm_libs support core irreader passes)
 target_link_libraries(llvm-kaleidoscope ${llvm_libs})
 
 # LLVM is (typically) built with no C++ RTTI. We need to match that;

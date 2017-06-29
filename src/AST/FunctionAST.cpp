@@ -6,6 +6,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "../Logger.h"
 
 using namespace llvm;
@@ -15,6 +16,7 @@ llvm::Function *FunctionAST::codegen() {
   extern llvm::LLVMContext TheContext;
   extern llvm::IRBuilder<> Builder;
   extern std::map<std::string, llvm::Value *> NamedValues;
+  extern std::unique_ptr<legacy::FunctionPassManager> TheFPM;
   Function *TheFunction = TheModule->getFunction(Proto->getName());
   if (!TheFunction) {
     TheFunction = Proto->codegen();
@@ -39,6 +41,7 @@ llvm::Function *FunctionAST::codegen() {
   if (Value *RetVal = Body->codegen()) {
     Builder.CreateRet(RetVal);
     llvm::verifyFunction(*TheFunction);
+    TheFPM->run(*TheFunction);
     return TheFunction;
   }
 

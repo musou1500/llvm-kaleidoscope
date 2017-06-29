@@ -10,6 +10,9 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Value.h"
+#include "llvm/IR/LegacyPassManager.h"
+#include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/GVN.h"
 #include "llvm/Support/raw_ostream.h"
 #include "AST/ExprAST.h"
 #include "AST/CallExprAST.h"
@@ -24,6 +27,7 @@ llvm::LLVMContext TheContext;
 llvm::IRBuilder<> Builder(TheContext);
 std::unique_ptr<llvm::Module> TheModule;
 std::map<std::string, llvm::Value *> NamedValues;
+std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
 
 static std::map<char, int> BinopPrecedence;
 
@@ -312,16 +316,28 @@ static void Mainloop() {
   }
 }
 
+static void InitializeModuleAndPassManager(void) {
+  TheModule = llvm::make_unique<llvm::Module>("my cool jit", TheContext);
+  TheFPM = llvm::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get());
+  TheFPM->add(llvm::createInstructionCombiningPass());
+  TheFPM->add(llvm::createReassociatePass());
+  TheFPM->add(llvm::createGVNPass());
+  TheFPM->add(llvm::createCFGSimplificationPass());
+  TheFPM->doInitialization();
+}
+
+
 int main(int argc, char const* argv[])
 {
   BinopPrecedence['<'] = 10;
   BinopPrecedence['+'] = 20;
   BinopPrecedence['-'] = 20;
   BinopPrecedence['*'] = 40;
+  InitializeModuleAndPassManager();
 
   fprintf(stderr, "ready> ");
   getNextToken();
-  TheModule = llvm::make_unique<llvm::Module>("my cool jit", TheContext);
+  //TheModule = llvm::make_unique<llvm::Module>("my cool jit", TheContext);
   Mainloop();
   TheModule->print(llvm::errs(), nullptr);
   return 0;
