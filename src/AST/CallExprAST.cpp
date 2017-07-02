@@ -7,10 +7,11 @@
 #include "llvm/IR/IRBuilder.h"
 #include "../Logger.h"
 
+extern llvm::Function *getFunction(std::string name);
 llvm::Value *CallExprAST::codegen() {
   extern std::unique_ptr<llvm::Module> TheModule;
   extern llvm::IRBuilder<> Builder;
-  llvm::Function *CalleeF = TheModule->getFunction(Callee);
+  llvm::Function *CalleeF = getFunction(Callee);
   if (!CalleeF) {
     return LogErrorV("unknown function referenced");
   }

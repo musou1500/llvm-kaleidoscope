@@ -1,6 +1,7 @@
 #include "FunctionAST.h"
 #include <memory>
 #include <map>
+#include <string>
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
@@ -11,23 +12,20 @@
 
 using namespace llvm;
 
+extern llvm::Function* getFunction(std::string name);
+
 llvm::Function *FunctionAST::codegen() {
   extern std::unique_ptr<llvm::Module> TheModule;
   extern llvm::LLVMContext TheContext;
   extern llvm::IRBuilder<> Builder;
   extern std::map<std::string, llvm::Value *> NamedValues;
   extern std::unique_ptr<legacy::FunctionPassManager> TheFPM;
-  Function *TheFunction = TheModule->getFunction(Proto->getName());
-  if (!TheFunction) {
-    TheFunction = Proto->codegen();
-  }
-
+  extern std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
+  auto &P = *Proto;
+  FunctionProtos[Proto->getName()] = std::move(Proto);
+  Function *TheFunction = getFunction(P.getName());
   if (!TheFunction) {
     return nullptr;
-  }
-
-  if (!TheFunction->empty()) {
-    return (Function *)LogErrorV("Function cannot be redefined.");
   }
 
   llvm::BasicBlock *BB = llvm::BasicBlock::Create(TheContext, "entry", TheFunction);

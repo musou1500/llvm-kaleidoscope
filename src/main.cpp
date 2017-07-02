@@ -13,6 +13,8 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Transforms/Scalar.h"
 #include "llvm/Transforms/Scalar/GVN.h"
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/Target/TargetMachine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "AST/ExprAST.h"
 #include "AST/CallExprAST.h"
@@ -22,14 +24,20 @@
 #include "AST/PrototypeAST.h"
 #include "AST/VariableExprAST.h"
 #include "Logger.h"
+#include "./KaleidoscopeJIT.h"
+
+using llvm::orc::KaleidoscopeJIT;
 
 llvm::LLVMContext TheContext;
 llvm::IRBuilder<> Builder(TheContext);
 std::unique_ptr<llvm::Module> TheModule;
 std::map<std::string, llvm::Value *> NamedValues;
 std::unique_ptr<llvm::legacy::FunctionPassManager> TheFPM;
+std::unique_ptr<KaleidoscopeJIT> TheJIT;
+std::map<std::string, std::unique_ptr<PrototypeAST>> FunctionProtos;
 
 static std::map<char, int> BinopPrecedence;
+static void InitializeModuleAndPassManager(void);
 
 enum Token {
   tok_eof = -1,
@@ -251,8 +259,21 @@ static std::unique_ptr<PrototypeAST> ParseExtern() {
 
 static std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
   if (auto E = ParseExpression()) {
-    auto Proto = llvm::make_unique<PrototypeAST>("", std::vector<std::string>());
+    auto Proto = llvm::make_unique<PrototypeAST>("__anon_expr", std::vector<std::string>());
     return llvm::make_unique<FunctionAST>(std::move(Proto), std::move(E));
+  }
+
+  return nullptr;
+}
+
+llvm::Function *getFunction(std::string name) {
+  if (auto *F = TheModule->getFunction(name)) {
+    return F;
+  }
+
+  auto FI = FunctionProtos.find(name);
+  if (FI != FunctionProtos.end()) {
+    return FI->second->codegen();
   }
 
   return nullptr;
@@ -261,9 +282,10 @@ static std::unique_ptr<FunctionAST> ParseTopLevelExpr() {
 static void HandleDefinition() {
   if (auto FnAST = ParseDefinition()) {
     if(auto *FnIR =FnAST->codegen()) {
-      fprintf(stderr, "Read function definition:");
       FnIR->print(llvm::errs());
       fprintf(stderr, "\n");
+      TheJIT->addModule(std::move(TheModule));
+      InitializeModuleAndPassManager();
     }
   } else {
     getNextToken();
@@ -272,10 +294,11 @@ static void HandleDefinition() {
 
 static void HandleExtern() {
   if (auto ProtoAST = ParseExtern()) {
-    if (auto * FnIR = ProtoAST->codegen()) {
-      fprintf(stderr, "Read extern:");
+    if (auto* FnIR = ProtoAST->codegen()) {
+      fprintf(stderr, "Read extern: ");
       FnIR->print(llvm::errs());
       fprintf(stderr, "\n");
+      FunctionProtos[ProtoAST->getName()] = std::move(ProtoAST);
     }
   } else {
     getNextToken();
@@ -284,10 +307,18 @@ static void HandleExtern() {
 
 static void HandleTopLevelExpression() {
   if (auto FnAST = ParseTopLevelExpr()) {
-    if (auto *FnIR = FnAST->codegen()) {
-      fprintf(stderr, "Read top-level expression:");
-      FnIR->print(llvm::errs());
-      fprintf(stderr, "\n");
+    if (FnAST->codegen()) {
+      auto H = TheJIT->addModule(std::move(TheModule));
+      InitializeModuleAndPassManager();
+
+      auto ExprSymbol = TheJIT->findSymbol("__anon_expr");
+
+      assert(ExprSymbol && "Function not found");
+
+      double (*FP)() = (double (*)())(intptr_t)ExprSymbol.getAddress();
+
+      fprintf(stderr, "Evaluated to %f\n", FP());
+      TheJIT->removeModule(H);
     }
   } else {
     getNextToken();
@@ -318,6 +349,8 @@ static void Mainloop() {
 
 static void InitializeModuleAndPassManager(void) {
   TheModule = llvm::make_unique<llvm::Module>("my cool jit", TheContext);
+  TheModule->setDataLayout(TheJIT->getTargetMachine().createDataLayout());
+
   TheFPM = llvm::make_unique<llvm::legacy::FunctionPassManager>(TheModule.get());
   TheFPM->add(llvm::createInstructionCombiningPass());
   TheFPM->add(llvm::createReassociatePass());
@@ -329,16 +362,22 @@ static void InitializeModuleAndPassManager(void) {
 
 int main(int argc, char const* argv[])
 {
+  llvm::InitializeNativeTarget();
+  llvm::InitializeNativeTargetAsmPrinter();
+  llvm::InitializeNativeTargetAsmParser();
+
   BinopPrecedence['<'] = 10;
   BinopPrecedence['+'] = 20;
   BinopPrecedence['-'] = 20;
   BinopPrecedence['*'] = 40;
-  InitializeModuleAndPassManager();
 
   fprintf(stderr, "ready> ");
   getNextToken();
-  //TheModule = llvm::make_unique<llvm::Module>("my cool jit", TheContext);
+
+  // Initialize JIT
+  TheJIT = llvm::make_unique<KaleidoscopeJIT>();
+  InitializeModuleAndPassManager();
+
   Mainloop();
-  TheModule->print(llvm::errs(), nullptr);
   return 0;
 }
